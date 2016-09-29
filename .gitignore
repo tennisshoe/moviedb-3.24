@@ -1,3 +1,14 @@
+# non-code directories
+bin/*
+dbs/*
+docs/*
+etc/*
+INSTALL
+LICENSE
+README
+lists/*
+man/*
+
 # Compiled Object files
 *.slo
 *.lo
