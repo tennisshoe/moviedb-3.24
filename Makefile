@@ -72,11 +72,13 @@ LFETCHOPT = -auto
 
 # Your C Compiler
 # NOTE: must be ANSI compatible, use gcc if your standard compiler isn't!
-#CC = gcc
-CC = cc
+CC = gcc
+#CC = cc
 
 # C flags
-CFLAGS = -O -DCOMPRESS
+# CFLAGS = -O -DCOMPRESS
+# trying to add debugging
+CFLAGS = -O -DCOMPRESS -g
 
 # Linker
 LD = $(CC)

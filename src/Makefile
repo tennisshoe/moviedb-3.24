@@ -1,6 +1,6 @@
 
 EXEBIN = list title ltrace lguide listall mkballot lindex lformat lseen \
-         alist template templist
+         alist template templist exporter
 
 EXEETC = mkdb
 
@@ -10,7 +10,7 @@ SRC = list.c mkdb.c dbutils.c filmography.c years.c biographies.c \
       aka.c ratings.c title.c titlesearch.c trivia.c plot.c lcs.c ltrace.c \
       lguide.c listall.c mkballot.c lindex.c lformat.c lseen.c alist.c \
       titleinfo.c template.c templist.c literature.c castcomp.c movielinks.c \
-      log.c display.c business.c laserdisc.c
+      log.c display.c business.c laserdisc.c exporter.c
 
 OBJ = $(SRC:.c=.o)
 
@@ -40,6 +40,9 @@ compile : $(EXE)
 mkdb : mkdb.o dbutils.o
 	$(LD) $(LDFLAGS) -o mkdb mkdb.o dbutils.o
 
+exporter : exporter.o dbutils.o
+	$(LD) $(LDFLAGS) -o exporter exporter.o dbutils.o
+	
 list : list.o dbutils.o filmography.o years.o biographies.o aka.o \
         ratings.o lcs.o titleinfo.o log.o display.o
 	$(LD) $(LDFLAGS) -o list list.o dbutils.o filmography.o years.o\
@@ -148,40 +151,3 @@ depend:
 #
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-list.o: list.c log.h moviedb.h dbutils.h filmography.h display.h
-mkdb.o: mkdb.c moviedb.h dbutils.h
-dbutils.o: dbutils.c moviedb.h dbutils.h
-filmography.o: filmography.c moviedb.h dbutils.h filmography.h years.h \
- biographies.h aka.h ratings.h lcs.h titleinfo.h
-years.o: years.c moviedb.h dbutils.h
-biographies.o: biographies.c moviedb.h dbutils.h
-aka.o: aka.c moviedb.h dbutils.h
-ratings.o: ratings.c moviedb.h dbutils.h
-title.o: title.c log.h moviedb.h dbutils.h titlesearch.h display.h
-titlesearch.o: titlesearch.c moviedb.h dbutils.h filmography.h years.h \
- aka.h ratings.h plot.h trivia.h titleinfo.h literature.h business.h \
- laserdisc.h movielinks.h castcomp.h display.h
-trivia.o: trivia.c moviedb.h dbutils.h
-plot.o: plot.c moviedb.h dbutils.h
-lcs.o: lcs.c
-ltrace.o: ltrace.c log.h moviedb.h dbutils.h filmography.h \
- titlesearch.h display.h
-lguide.o: lguide.c log.h moviedb.h dbutils.h titlesearch.h display.h
-listall.o: listall.c log.h moviedb.h dbutils.h titlesearch.h \
- filmography.h display.h
-mkballot.o: mkballot.c log.h moviedb.h dbutils.h filmography.h \
- display.h
-lindex.o: lindex.c log.h moviedb.h dbutils.h ratings.h titleinfo.h
-lformat.o: lformat.c moviedb.h dbutils.h years.h ratings.h
-lseen.o: lseen.c moviedb.h dbutils.h years.h ratings.h
-alist.o: alist.c log.h moviedb.h dbutils.h years.h
-titleinfo.o: titleinfo.c moviedb.h dbutils.h
-template.o: template.c
-templist.o: templist.c
-literature.o: literature.c moviedb.h dbutils.h literature.h
-castcomp.o: castcomp.c moviedb.h dbutils.h
-movielinks.o: movielinks.c moviedb.h dbutils.h
-log.o: log.c
-display.o: display.c moviedb.h dbutils.h
-business.o: business.c moviedb.h dbutils.h literature.h
-laserdisc.o: laserdisc.c moviedb.h dbutils.h
