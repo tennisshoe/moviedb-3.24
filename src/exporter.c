@@ -328,28 +328,41 @@ int exportTitles() {
 			*ptrEndBracket = '\0';			
 		}	
 
-		char * strEncodedTitle, * strEncodedYear, * strEncodedEpisodeName, * strEncodedSeason, * strEncodedEpisodeNumber;
+		// char * strEncodedTitle, * strEncodedYear, * strEncodedEpisodeName, * strEncodedSeason, * strEncodedEpisodeNumber;
+		char * strEncodedTitle, * strEncodedEpisodeName;
 		strEncodedTitle = encodeCSVString(strTitleName);
-		strEncodedYear = encodeCSVString(ptrYear);
+		int iYear = atoi(ptrYear);
+		//strEncodedYear = encodeCSVString(ptrYear);
 		strEncodedEpisodeName = encodeCSVString(ptrEpisodeName);
-		strEncodedSeason = encodeCSVString(ptrSeason);
-		strEncodedEpisodeNumber = encodeCSVString(ptrEpisodeNumber);
+		int iSeason = atoi(ptrSeason);
+		//strEncodedSeason = encodeCSVString(ptrSeason);
+		int iEpisodeNumber = atoi(ptrEpisodeNumber);
+		//strEncodedEpisodeNumber = encodeCSVString(ptrEpisodeNumber);
 		
 		//write out the line of data
-		fprintf(fpTitlesCSV,"%li,%s, %s, %s, %s, %s, %i\n",
+		fprintf(fpTitlesCSV,"%li,%s, %i, %s, %i, %i, %i\n",
+			lTitleID,
+			strEncodedTitle, 
+			iYear,
+			strEncodedEpisodeName ,
+			iSeason ,
+			iEpisodeNumber,
+			isSuspended);
+			
+			/* 		fprintf(fpTitlesCSV,"%li,%s, %s, %s, %s, %s, %i\n",
 			lTitleID,
 			strEncodedTitle, 
 			strEncodedYear,
 			strEncodedEpisodeName ,
 			strEncodedSeason ,
 			strEncodedEpisodeNumber,
-			isSuspended);
+			isSuspended); */			
 			
 		free(strEncodedTitle);
-		free(strEncodedYear);
+		//free(strEncodedYear);
 		free(strEncodedEpisodeName);
-		free(strEncodedSeason);
-		free(strEncodedEpisodeNumber);
+		//free(strEncodedSeason);
+		//free(strEncodedEpisodeNumber);
 	}
 	
 	fclose(fpTitlesCSV);
