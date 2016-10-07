@@ -1,43 +1,138 @@
 classdef titlesindex < handle
     properties (Access = private)
         mapShow
+        mapNames
+        charBuffer = blanks(1024);
     end
     methods (Access = public)
-        function index = getMap(obj)
+        function index = getMapShow(obj)
             if isempty(obj.mapShow)
-                loadMap(obj);
+                loadMapShow(obj);
             end
             index = obj.mapShow;            
         end
-        function titleID = lookupTitleID(obj,line)
-            map = obj.getMap();
+        function index = getMapNames(obj)
+            if isempty(obj.mapNames)
+                loadMapNames(obj);
+            end
+            index = obj.mapNames;            
+        end
+        function titleID = lookupTitleID(obj,line,debug)
+            if(~exist('debug','var'))
+                debug = true;
+            end
+            map = obj.getMapShow();
+            if(isstring(line))
+                line = char(line);
+            end
             % first remove the suspended tag so regex is easier
             line = strrep(line,'{{SUSPENDED}}','');
             % get the show title and year, which we're considering required
-            expression = '^"(?<title>[^"]*)"\s\((?<year>\d{4})/?[IV]*\)\s?';
+            % sometimes the title includes quotes to specifically indicate
+            % a TV show
+            expression = '^"?(?<title>[^"]*)"?\s\((?<year>\d{4})/?[IV]*\)\s?';
             [tokensTitleYear,line] = regexp(line, expression, 'names', 'split');
             if(~(isempty(tokensTitleYear)))
                 % next pull out the epsiode info
                 expression = '\s?\(#(?<season>\d*)?.(?<episodeNumber>\d*)?\)';
-                [tokensSeasonEpsiodeNumber,line] = regexp(line{2}, expression, 'names', 'split');
+                [tokensSeasonEpsiodeNumber,line] = regexp(char(join(line)), expression, 'names', 'split');
+                % this could potentially return more than one match. Take
+                % the first
+                if(~isempty(tokensSeasonEpsiodeNumber))
+                    tokensSeasonEpsiodeNumber = tokensSeasonEpsiodeNumber(1);
+                end
                 % what's left is the episode names
-                expression = '{(?<episode>.*)}';
-                tokensEpisodeName = regexp(line{1}, expression, 'names');
-                key=strcat(tokensTitleYear.title,'|',tokensTitleYear.year,'|',tokensEpisodeName.episode,'|',tokensSeasonEpsiodeNumber.season,'|',tokensSeasonEpsiodeNumber.episodeNumber);
+                expression = '\s*{(?<episode>.*?)\s*}\s*';
+                tokensEpisodeName = regexp(char(join(line)), expression, 'names');
+                s = 1;
+                if(~isempty(tokensTitleYear) && ~isempty(tokensTitleYear.title))
+                    e = s + length(tokensTitleYear.title) - 1;
+                    obj.charBuffer(s:e) = tokensTitleYear.title(1:end);
+                    s = e + 1;
+                end
+                obj.charBuffer(s) = '|';
+                s = s + 1;
+                if(~isempty(tokensTitleYear) && ~isempty(tokensTitleYear.year))
+                    e = s + length(tokensTitleYear.year) - 1;
+                    obj.charBuffer(s:e) = tokensTitleYear.year(1:end);
+                    s = e + 1;
+                end
+                obj.charBuffer(s) = '|';
+                s = s + 1;
+                % let's try skipping episode name since the strings might
+                % not match well
+                %{
+                if(~isempty(tokensEpisodeName) && ~isempty(tokensEpisodeName.episode))
+                    e = s + length(tokensEpisodeName.episode) - 1;
+                    obj.charBuffer(s:e) = tokensEpisodeName.episode(1:end);
+                    s = e + 1;
+                end
+                %}
+                obj.charBuffer(s) = '|';
+                s = s + 1;
+                if(~isempty(tokensSeasonEpsiodeNumber) &&~isempty(tokensSeasonEpsiodeNumber.season))
+                    e = s + length(tokensSeasonEpsiodeNumber.season) - 1;
+                    obj.charBuffer(s:e) = tokensSeasonEpsiodeNumber.season(1:end);
+                    s = e + 1;
+                end
+                obj.charBuffer(s) = '|';
+                s = s + 1;
+                if(~isempty(tokensSeasonEpsiodeNumber) && ~isempty(tokensSeasonEpsiodeNumber.episodeNumber))
+                    e = s + length(tokensSeasonEpsiodeNumber.episodeNumber) - 1;
+                    obj.charBuffer(s:e) = tokensSeasonEpsiodeNumber.episodeNumber(1:end);
+                    s = e + 1;
+                end                
+                % s = e+1;
+                % e = s;
+                % obj.charBuffer(s:e) = '\0';
+                key = obj.charBuffer(1:(s-1));
+                % key=strcat(tokensTitleYear.title,'|',tokensTitleYear.year,'|',tokensEpisodeName.episode,'|',tokensSeasonEpsiodeNumber.season,'|',tokensSeasonEpsiodeNumber.episodeNumber);
+                % key=char(key);
                 if(isKey(map,key))
                     titleID = map(key);
                 else
-                    fprintf('Couldn''t find key: %s\n',key);
+                    % throwing too many errors on producerprocessor since
+                    % the data mixes TV with movies
+                    if(debug)
+                        fprintf('Couldn''t find key: %s\n',key);
+                    end
                     titleID = NaN;
                 end
             else
-                fprintf('Title / year failure: %s\n',line{1});
+                if(debug)
+                    fprintf('Title / year failure: %s\n',line{1});
+                end
                 titleID = NaN;
             end
         end
+        function nameID = lookupNameID(obj,name,debug)
+            if(~exist('debug','var'))
+                debug = true;
+            end
+            
+            nameID = NaN;
+            map = obj.getMapNames();
+            
+            tokens = regexp(name,'^(?<lastname>[^,]*?)\s*,\s*(?<firstname>.*)','names');
+            if(isempty(tokens))
+				% default to name being lastname
+				key = strcat('|',name);
+            else 
+                key = strcat(tokens.firstname,'|',tokens.lastname);
+			end
+			if(isKey(map,key))
+				nameID = map(key);
+			else
+				% throwing too many errors on producerprocessor since
+				% the data mixes TV with movies
+				if(debug)
+					fprintf('Couldn''t find name: %s\n',key);
+				end
+			end
+        end
     end
     methods (Access = private)
-        function loadMap(obj)
+        function loadMapShow(obj)
             %% Initialize variables.
             filename = '../dbs/titles.csv';
             delimiter = ',';
@@ -76,20 +171,53 @@ classdef titlesindex < handle
             strEpisodeNumber = cellstr(strEpisodeNumber);
             strEpisodeNumber(isnan(EpisodeNumber)) = {''};
 
-            key = strcat(ShowName,'|',strYear,'|',EpisodeName,'|',strSeason,'|',strEpisodeNumber);
+            % only doing the short version since matches are more reliable
+            % key = strcat(ShowName,'|',strYear,'|',EpisodeName,'|',strSeason,'|',strEpisodeNumber);
             keyShort = strcat(ShowName,'|',strYear,'||',strSeason,'|',strEpisodeNumber);
 
             disp('Building map');
-            obj.mapShow = containers.Map(key,TitleID,'UniformValues',true);
-            obj.mapShow = [obj.mapShow;containers.Map(keyShort,TitleID,'UniformValues',true)];
-
-            clearvars key keyShort strYear strSeason strEpisodeNumber
-            clearvars TitleID ShowName Year EpisodeName Season EpisodeNumber IsSuspended;
-            clearvars mapKeys mapValues;
+            % obj.mapShow = containers.Map(key,TitleID,'UniformValues',true);
+            % obj.mapShow = [obj.mapShow;containers.Map(keyShort,TitleID,'UniformValues',true)];
+            obj.mapShow = containers.Map(keyShort,TitleID,'UniformValues',true);
 
             disp('Done loading map');
 
         end
+        function loadMapNames(obj)
+            filename = '../dbs/names.csv';
+            delimiter = ',';
+            startRow = 2;
+
+            formatSpec = '%f%q%q%[^\n\r]';
+
+            %% Open the text file.
+            fprintf('Loading %s\n',filename);
+            fileID = fopen(filename,'r');
+
+            dataArray = textscan(fileID, formatSpec, 'Delimiter', delimiter, 'EmptyValue' ,NaN,'HeaderLines' ,startRow-1, 'ReturnOnError', false, 'EndOfLine', '\r\n');
+
+            %% Close the text file.
+            fclose(fileID);
+
+
+            %% Allocate imported array to column variable names
+            NameID = dataArray{:, 1};
+            FirstName = dataArray{:, 2};
+            LastName = dataArray{:, 3};
+
+            %% Clear temporary variables
+            clearvars filename delimiter startRow formatSpec fileID dataArray ans;
+
+            disp('Parsing strings');
+
+            key = strcat(FirstName,'|',LastName);
+
+            disp('Building map');
+            obj.mapNames = containers.Map(key,NameID,'UniformValues',true);
+
+            disp('Done loading map');
+
+        end        
     end
 
 

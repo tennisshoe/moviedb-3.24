@@ -14,6 +14,7 @@ man/*
 *.lo
 *.o
 *.obj
+*.asv
 
 # Precompiled Headers
 *.gch
