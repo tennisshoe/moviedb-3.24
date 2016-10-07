@@ -1,0 +1,39 @@
+make CC="gcc" CXXFLAGS="-std=c++11 -lpthread" CFLAGS="-O -DCOMPRESS -g" LD="g++" LDFLAGS="-O -DCOMPRESS -g -std=c++11 -lpthread -lstdc++" \
+	RAWDIR="`pwd`/lists/" DBDIR="`pwd`/dbs/" ETCDIR="`pwd`/etc/" do-compile
+make[1]: Entering directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24'
+cd `pwd`/src/; make CC="gcc" \
+		CFLAGS="-O -DCOMPRESS -g -DHAVE_TEMPNAM=0 \
+                -DLOGFILE=0 " LOGFILENAME="/tmp/.imdb_log" \
+                LD="g++" LDFLAGS="-O -DCOMPRESS -g -std=c++11 -lpthread -lstdc++" \
+                ZLISTCAT="/bin/gzip" ZDBSCAT="/bin/gzip" \
+                ZLISTCATOPTS="-cd" ZDBSCATOPTS="-cd" \
+                ZLISTEXT=".gz" ZDBSEXT=".gz" \
+		RAWDIR="/home/achavda/moviedb-3.24/lists/" DBDIR="/home/achavda/moviedb-3.24/dbs/" ETCDIR="/home/achavda/moviedb-3.24/etc/" compile
+make[2]: Entering directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/src'
+All is compiled.
+make[2]: Leaving directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/src'
+make[1]: Leaving directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24'
+make BINDIR="`pwd`/bin/" ETCDIR="`pwd`/etc/" do-installbin
+make[1]: Entering directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24'
+cd `pwd`/src/; make BINDIR="/home/achavda/moviedb-3.24/bin/" ETCDIR="/home/achavda/moviedb-3.24/etc/" installbin
+make[2]: Entering directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/src'
+cp list title ltrace lguide listall mkballot lindex lformat lseen alist template templist exporter listprocessor /home/achavda/moviedb-3.24/bin/
+cp mkdb /home/achavda/moviedb-3.24/etc/
+make[2]: Leaving directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/src'
+make[1]: Leaving directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24'
+cd `pwd`/src/; make cleanobj
+make[1]: Entering directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/src'
+rm -f list.o mkdb.o dbutils.o filmography.o years.o biographies.o aka.o ratings.o title.o titlesearch.o trivia.o plot.o lcs.o ltrace.o lguide.o listall.o mkballot.o lindex.o lformat.o lseen.o alist.o titleinfo.o template.o templist.o literature.o castcomp.o movielinks.o log.o display.o business.o laserdisc.o exporter.o listprocessor.o list title ltrace lguide listall mkballot lindex lformat lseen alist template templist exporter listprocessor mkdb
+rm -f Makefile.bak
+make[1]: Leaving directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/src'
+make MANDIR="`pwd`/man/" DBDIR="`pwd`/dbs/" MAINDIR="`pwd`/" \
+                do-installman
+make[1]: Entering directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24'
+cd /home/achavda/moviedb-3.24/man/; make MANDIR="/home/achavda/moviedb-3.24/man/" DBDIR="/home/achavda/moviedb-3.24/dbs/" \
+		MAINDIR="/home/achavda/moviedb-3.24/" \
+		RELEASEDATE="10th August 1995" VERSIONNUMBER="3.2d"\
+                installman
+make[2]: Entering directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/man'
+cp alist.1 lguide.1 list.1 lseen.1 mkballot.1 lformat.1 lindex.1 listall.1 ltrace.1 title.1 /home/achavda/moviedb-3.24/man/man1/;
+make[2]: Leaving directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24/man'
+make[1]: Leaving directory `/mnt/c/Users/achavda/Dropbox (MIT)/Television Project/Data/moviedb-3.24'

@@ -74,18 +74,22 @@ LFETCHOPT = -auto
 # NOTE: must be ANSI compatible, use gcc if your standard compiler isn't!
 CC = gcc
 #CC = cc
+CXX = g++
 
 # C flags
 # CFLAGS = -O -DCOMPRESS
 # trying to add debugging
 CFLAGS = -O -DCOMPRESS -g
+# CXXFLAGS = -std=c++11 -lpthread
+CXXFLAGS = -std=c++11 -lpthread
 
 # Linker
-LD = $(CC)
+# LD = $(CC)
+LD = $(CXX)
 
 # ld flags
 #LDFLAGS = $(CFLAGS) -s
-LDFLAGS = $(CFLAGS)
+LDFLAGS = $(CFLAGS) $(CXXFLAGS) -lstdc++
 
 # ZLISTCAT is a command to cat a compressed list file. It must be capable
 # of cat'ing files generated with 'gzip'. For security you are advised to
@@ -260,7 +264,7 @@ RELEASEDATE  = 10th August 1995
 all : compile installbin cleanobj installman
 
 compile :
-	$(MAKE) CC="$(CC)" CFLAGS="$(CFLAGS)" LD="$(LD)" LDFLAGS="$(LDFLAGS)" \
+	$(MAKE) CC="$(CC)" CXXFLAGS="$(CXXFLAGS)" CFLAGS="$(CFLAGS)" LD="$(LD)" LDFLAGS="$(LDFLAGS)" \
 	RAWDIR="$(RAWDIR)" DBDIR="$(DBDIR)" ETCDIR="$(ETCDIR)" do-compile
 
 do-compile : $(ZSANITYCHECK)

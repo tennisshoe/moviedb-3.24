@@ -1,16 +1,19 @@
 #include <iostream>
-#include "moviedb.h"
-#include "dbutils.h"
+#include <map>
 #include "exporter.h"
+#define CSV_IO_NO_THREAD
 #include "csv.h"
 
-int main {
-	std::cout << "Creating Titles Index\n"
+
+
+int main () {
+	std::cout << "Creating Titles Index"  << std::endl;
 	io::CSVReader<7,
-		trim_char<' ','\t'>,
-		double_quote_escape<',', '"'>,
-		> in(TITLESCSV);
-	in.read_header(no_comment, 
+		io::trim_chars<' ','\t'>,
+		io::double_quote_escape<',', '"'>,
+		io::throw_on_overflow,
+		io::no_comment> in(TITLESCSV);
+	in.read_header(io::ignore_no_column, 
 		"TitleID",
 		"Show Name", 
 		"Year", 
@@ -20,13 +23,17 @@ int main {
 		"Is Suspended");
 	long lTitleID;
 	std::string strShowName;
-	int iYear
+	char* striYear;
 	std::string strEpisodeName;
-	int iSeasonl
-	int iEpisodeNumber;
-	bool IsSuspended;
-	std::map<string,std::map<string,long>> mapShow;
-	while(in.read_row(vendor, size, speed)){
-		// do stuff with the data
+	char* ptriSeason;
+	char* ptriEpisodeNumber;
+	int IsSuspended;
+	std::map<std::string,long> mapShow;
+	while(in.read_row(lTitleID, strShowName, striYear,strEpisodeName,ptriSeason,ptriEpisodeNumber,IsSuspended)){
+		std::string key = strShowName + '|' + striYear + '|' + strEpisodeName +'|'+ ptriSeason+'|'+ ptriEpisodeNumber;
+		mapShow[key] = lTitleID;
 	}
+	std::cout << "Created Titles Index of " << mapShow.size() << " elements" << std::endl;
+	
+
 }

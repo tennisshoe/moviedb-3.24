@@ -1,5 +1,7 @@
-#define   TITLESCSV    DBDIR "titles.csv"
-#define   NAMESCSV    DBDIR "names.csv"
-#define   ATTRIBUTESCSV    DBDIR "atttributes.csv"
-#define		TVQUOTE			'"'
-#define		NEWLINE			"\n"
+//moviedb.h was having problems compiling in c++ since 
+//one of the struct's has a 'class' element
+#define     TITLESCSV        "dbs/titles.csv"
+#define     NAMESCSV         "dbs/names.csv"
+#define     ATTRIBUTESCSV    "dbs/atttributes.csv"
+#define		TVQUOTE			 '"'
+#define		NEWLINE			 "\n"

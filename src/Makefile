@@ -1,6 +1,6 @@
 
 EXEBIN = list title ltrace lguide listall mkballot lindex lformat lseen \
-         alist template templist exporter
+         alist template templist exporter listprocessor
 
 EXEETC = mkdb
 
@@ -10,9 +10,10 @@ SRC = list.c mkdb.c dbutils.c filmography.c years.c biographies.c \
       aka.c ratings.c title.c titlesearch.c trivia.c plot.c lcs.c ltrace.c \
       lguide.c listall.c mkballot.c lindex.c lformat.c lseen.c alist.c \
       titleinfo.c template.c templist.c literature.c castcomp.c movielinks.c \
-      log.c display.c business.c laserdisc.c exporter.c
+      log.c display.c business.c laserdisc.c exporter.c listprocessor.cpp
 
-OBJ = $(SRC:.c=.o)
+OBJ0 = $(SRC:.c=.o)
+OBJ = $(OBJ0:.cpp=.o)
 
 all :
 	@echo "I don't think you've read the install doc..."
@@ -40,6 +41,9 @@ compile : $(EXE)
 mkdb : mkdb.o dbutils.o
 	$(LD) $(LDFLAGS) -o mkdb mkdb.o dbutils.o
 
+listprocessor : listprocessor.o
+	$(LD) $(LDFLAGS) -o listprocessor listprocessor.o
+	
 exporter : exporter.o dbutils.o
 	$(LD) $(LDFLAGS) -o exporter exporter.o dbutils.o
 	

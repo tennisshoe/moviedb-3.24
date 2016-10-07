@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "moviedb.h"
 #include "dbutils.h"
 #include "exporter.h"
@@ -32,7 +33,8 @@ char* encodeCSVString(const char* strInput) {
 	char * strOutput = malloc(lSize);
 	
 	//now go through the original string and copy double quotes
-	char  * ptrInput, * ptrOutput;
+	const char  * ptrInput;
+	char * ptrOutput;
 	ptrOutput = strOutput;
 	*ptrOutput = '"';
 	ptrOutput++;
@@ -214,6 +216,7 @@ int exportTitles() {
 	char  *ptrID, *ptrEndquote, *ptrYear, *ptrEndYear, *ptrEpisodeName, *ptrEndEpisodeName, *ptrStartBracket, *ptrEndBracket, *ptrSeason, *ptrEpisodeNumber, *ptrEndEpisodeNumber, *ptrSuspended;
 	char* emptyString = "";
 	long lineNumber = 0;
+	long errorCount = 0;
 
 	//opening title file and dump to CSV
 	fpTitlesKey = openFile ( TITLEKEY ) ;
@@ -231,6 +234,7 @@ int exportTitles() {
 		ptrEndquote = strchr(strTitleName,TVQUOTE);
 		if(ptrEndquote == NULL) {
 			fprintf(stderr,"Missing endquote on line %li\n",lineNumber);
+			errorCount++;
 			continue;
 		}
 		//set endquote as end of string
@@ -240,6 +244,7 @@ int exportTitles() {
 	    ptrID = strchr ( ptrEndquote+1, FSEP ) ;
 		if(ptrID == NULL) {
 			fprintf(stderr,"Missing ID marker on line %li\n",lineNumber);
+			errorCount++;
 			continue;
 		}
 		//the fgets should put a null at the end of the ID number
@@ -261,6 +266,7 @@ int exportTitles() {
 		ptrYear = strchr(ptrEndquote+1,'(');
 		if(ptrYear == NULL) {
 			fprintf(stderr,"Missing year on line %li\n",lineNumber);
+			errorCount++;
 			continue;
 		}
 		//year starts one after the marker;
@@ -269,6 +275,7 @@ int exportTitles() {
 		ptrEndYear = strchr(ptrYear,')');
 		if(ptrYear == NULL) {
 			fprintf(stderr,"Missing year on line %li\n",lineNumber);
+			errorCount++;
 			continue;
 		}		
 		*ptrEndYear = '\0';
@@ -282,11 +289,13 @@ int exportTitles() {
 			ptrEndBracket = strchr(ptrStartBracket,'}');
 			if(ptrEndBracket == NULL) {
 				fprintf(stderr,"Missing end bracket on line %li\n",lineNumber);
+				errorCount++;
 				continue;
 			}
 			//as a robustness check should have ptrID -1 = end epsiode
 			if(ptrEndBracket+1 != ptrID) {
 				fprintf(stderr,"End bracket and ID misaligned on line %li\n",lineNumber);
+				errorCount++;
 				continue;
 			}
 			ptrEpisodeName = ptrStartBracket+1;
@@ -298,6 +307,7 @@ int exportTitles() {
 				ptrEndEpisodeName++;
 				if(ptrEndEpisodeName == NULL) {				
 					fprintf(stderr,"Missing end name on line %li\n",lineNumber);
+					errorCount++;
 					continue;
 				}
 			}			
@@ -328,27 +338,59 @@ int exportTitles() {
 			*ptrEndBracket = '\0';			
 		}	
 
+		
+		int iYear = atoi(ptrYear);
+		int iSeason = atoi(ptrSeason);
+		int iEpisodeNumber = atoi(ptrEpisodeNumber);
+		if(iYear == 0 && !(ptrYear == emptyString) && !(*ptrYear=='0' && *(ptrYear+1)=='\0' )){
+			//this mostly happens when year is unknown '????'
+			fprintf(stderr, "Year error line: %li String:%s\n",lineNumber,ptrYear);
+			errorCount++;
+			continue;
+		}		
+		if(iSeason == 0 && !(ptrSeason == emptyString) && !(*ptrSeason=='0' && *(ptrSeason+1)=='\0' )){
+			//handful of parsing errors not worth fixing
+			fprintf(stderr, "Season error line: %li String:%s\n",lineNumber,ptrSeason);
+			errorCount++;
+			continue;
+		}
+		if(iEpisodeNumber == 0 && !(ptrEpisodeNumber == emptyString) && !(*ptrEpisodeNumber=='0' && *(ptrEpisodeNumber+1)=='\0' )){
+			//handful of parsing errors not worth fixing
+			fprintf(stderr, "Episode Number error line: %li String:%s\n",lineNumber,ptrEpisodeNumber);				
+			errorCount++;
+			continue;
+		}
+		
 		// char * strEncodedTitle, * strEncodedYear, * strEncodedEpisodeName, * strEncodedSeason, * strEncodedEpisodeNumber;
 		char * strEncodedTitle, * strEncodedEpisodeName;
 		strEncodedTitle = encodeCSVString(strTitleName);
-		int iYear = atoi(ptrYear);
 		//strEncodedYear = encodeCSVString(ptrYear);
-		strEncodedEpisodeName = encodeCSVString(ptrEpisodeName);
-		int iSeason = atoi(ptrSeason);
+		strEncodedEpisodeName = encodeCSVString(ptrEpisodeName);		
 		//strEncodedSeason = encodeCSVString(ptrSeason);
-		int iEpisodeNumber = atoi(ptrEpisodeNumber);
 		//strEncodedEpisodeNumber = encodeCSVString(ptrEpisodeNumber);
+
 		
 		//write out the line of data
-		fprintf(fpTitlesCSV,"%li,%s, %i, %s, %i, %i, %i\n",
-			lTitleID,
-			strEncodedTitle, 
-			iYear,
-			strEncodedEpisodeName ,
-			iSeason ,
-			iEpisodeNumber,
-			isSuspended);
-			
+		fprintf(fpTitlesCSV,"%li,",lTitleID);
+		fprintf(fpTitlesCSV,"%s,",strEncodedTitle);
+		if (ptrYear == emptyString) {
+			fprintf(fpTitlesCSV,",");
+		} else {
+			fprintf(fpTitlesCSV,"%i,",iYear);
+		}
+		fprintf(fpTitlesCSV,"%s,",strEncodedEpisodeName);
+		if (ptrSeason == emptyString) {
+			fprintf(fpTitlesCSV,",");
+		} else {
+			fprintf(fpTitlesCSV,"%i,",iSeason);
+		}
+		if (ptrEpisodeNumber == emptyString) {
+			fprintf(fpTitlesCSV,",");
+		} else {
+			fprintf(fpTitlesCSV,"%i,",iEpisodeNumber);
+		}
+		fprintf(fpTitlesCSV,"%i\n",isSuspended);
+					
 			/* 		fprintf(fpTitlesCSV,"%li,%s, %s, %s, %s, %s, %i\n",
 			lTitleID,
 			strEncodedTitle, 
@@ -367,6 +409,11 @@ int exportTitles() {
 	
 	fclose(fpTitlesCSV);
 	fclose(fpTitlesKey);
+	
+	fprintf(stdout, "Done with %li errors out of %li (TV+Movie) lines: failure rate %f%%\n",
+		errorCount,
+		lineNumber, 
+		errorCount / (float) lineNumber * 100);
 	
 	return 0;	
 }
