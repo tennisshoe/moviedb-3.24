@@ -28,15 +28,14 @@ titlesFound = 0;
 nameID = NaN;
 
 titles = cell(length(producers),1);
-name = cell(length(producers),1);
-role = cell(length(producers),1);
+names = cell(length(producers),1);
+roles = cell(length(producers),1);
 
 if(~exist('ti','var'))
     ti = titlesindex();
 end
 
-while(index<length(producers))
-    index = index + 1;
+for index=1:length(producers)
     line = producers{index};
     if (~dataSection && count(line, '----                    ------'))        
         dataSection = true;
@@ -62,8 +61,6 @@ while(index<length(producers))
     if(isnan(nameID))
         continue;
     end
-    % if no name then the current name is the same as the previous one
-    name{index} = nameID;
     % strip out the role from the line, catching producter, production,
     % latin language variants
     [token,line] = regexp(line,'\((?<role>[^\)]*(Produc|produc).*?)\)','names','split');
@@ -71,7 +68,6 @@ while(index<length(producers))
         fprintf('Not a producer role: %s\n',line{1});
         continue;
     end
-    role{index}=token.role;
     line = join(line);
     line = strrep(line,'(TV)','');
     % if(count(line,'My Extreme Animal Phobia'))
@@ -85,6 +81,10 @@ while(index<length(producers))
         continue;
     end
     titlesFound = titlesFound + 1;    
+    % if no name then the current name is the same as the previous one
+    names{index} = nameID;    
+    roles{index}=token.role;
+    titles{index} = titleID;
     if(mod(index,10000) == 0)
         fprintf('Found %i of %i total\n',titlesFound,index);
     end
@@ -94,8 +94,8 @@ clearvars -except titles names roles ti
 
 disp('Dropping empties');
 titles = titles(cellfun(@(x) ~isempty(x),titles));
-names = types(cellfun(@(x) ~isempty(x),names));
-roles = contents(cellfun(@(x) ~isempty(x),roles));
+names = names(cellfun(@(x) ~isempty(x),names));
+roles = roles(cellfun(@(x) ~isempty(x),roles));
 disp('Creating Table');
 outputTable = table(titles,names,roles,'VariableNames',{'TitleID' 'NameID' 'Role'});
 disp('Outputing CSV file');

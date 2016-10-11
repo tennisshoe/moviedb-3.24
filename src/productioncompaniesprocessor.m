@@ -83,7 +83,7 @@ titles = titles(cellfun(@(x) ~isempty(x),titles));
 name = name(cellfun(@(x) ~isempty(x),name));
 countrycode = countrycode(cellfun(@(x) ~isempty(x),countrycode));
 disp('Creating table');
-outputTable = table(titles,name, countrycode,'VariableNames',{'TitleID' 'Production Company' 'Country Code'});
+outputTable = table(titles,name, countrycode,'VariableNames',{'TitleID' 'ProductionCompany' 'CountryCode'});
 disp('Outputing CSV file');
 writetable(outputTable,'../dbs/production-companies.csv');
 
