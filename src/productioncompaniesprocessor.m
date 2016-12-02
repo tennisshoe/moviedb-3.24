@@ -55,7 +55,7 @@ for index=1:length(companies)
     end
     tvFound = tvFound + 1;
     % tokens = regexp(line,'^(?<show>.*)\t+(?<distributor>.+?)\s+\[(?<countrycode>\w\w)\]\s*','names');
-    tokens = regexp(line,'^(?<show>.*)\t+(?<distributor>.+?)','names');
+    [tokens,next] = regexp(line,'^(?<show>.*)\t+','names', 'split');
     if(isempty(tokens))
         fprintf('Failed to parse: %s\n', line);
         continue;
@@ -65,17 +65,22 @@ for index=1:length(companies)
         continue;
     end
     titlesFound = titlesFound + 1;
-    distributor = tokens.distributor;
-    tokens = regexp(distributor,'\[(?<countrycode>\w\w)\]','names');
-    titles{index} = titleID;
-    name{index} = distributor;
-    if(~isempty(tokens))
-        countrycode{index} = tokens.countrycode;
-    else 
-        % hacky but not sure what else to do and stil have columns the 
-        % right size for the table
-        countrycode{index} = ' ';
+    [tokens,next] = regexp(join(next),'\[(?<countrycode>\w\w)\]','names','split');
+    if(isempty(tokens))
+        cc = ' ';
+    else
+        cc = tokens(1).countrycode;
     end
+    tokens = regexp(join(next),'\s*(?<distributor>\w.*\w)','names');
+    if(isempty(tokens))
+        d = ' ';
+    else
+        d = tokens(1).distributor;
+    end
+
+    titles{index} = titleID;
+    name{index} = d;
+    countrycode{index} = cc;
 end
 
 disp('Dropping empties');

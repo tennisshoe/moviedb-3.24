@@ -3,6 +3,7 @@ bin/*
 dbs/*
 docs/*
 etc/*
+tmp/*
 INSTALL
 LICENSE
 README

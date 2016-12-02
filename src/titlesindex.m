@@ -3,6 +3,7 @@ classdef titlesindex < handle
         mapShow
         mapNames
         charBuffer = blanks(1024);
+        logfile
     end
     methods (Access = public)
         function index = getMapShow(obj)
@@ -24,6 +25,10 @@ classdef titlesindex < handle
             map = obj.getMapShow();
             if(isstring(line))
                 line = char(line);
+            end
+            debugline = line;
+            if (isempty(obj.logfile))
+                obj.logfile = fopen('UnairedShows.txt','w+');
             end
             % first remove the suspended tag so regex is easier
             line = strrep(line,'{{SUSPENDED}}','');
@@ -81,7 +86,7 @@ classdef titlesindex < handle
                     e = s + length(tokensSeasonEpsiodeNumber.episodeNumber) - 1;
                     obj.charBuffer(s:e) = tokensSeasonEpsiodeNumber.episodeNumber(1:end);
                     s = e + 1;
-                end                
+                end
                 % s = e+1;
                 % e = s;
                 % obj.charBuffer(s:e) = '\0';
@@ -90,6 +95,12 @@ classdef titlesindex < handle
                 % key=char(key);
                 if(isKey(map,key))
                     titleID = map(key);
+                    % Bulk of this is "Fox and Friends" type daily shows.
+                    % Removing because some unaired pilots have weird production
+                    % company data that is messing with 'real' values.
+                    if(~isempty(tokensEpisodeName) && isempty(tokensSeasonEpsiodeNumber)) 
+                       titleID = NaN;
+                    end                    
                 else
                     % throwing too many errors on producerprocessor since
                     % the data mixes TV with movies
@@ -103,7 +114,7 @@ classdef titlesindex < handle
                     fprintf('Title / year failure: %s\n',line{1});
                 end
                 titleID = NaN;
-            end
+            end         
         end
         function nameID = lookupNameID(obj,name,debug)
             if(~exist('debug','var'))
