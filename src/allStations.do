@@ -41,218 +41,191 @@ program chartbyyear
 
 end
 
-clear
-forvalues year = 1950/2014 {
-	clear
-	import excel using $dir/../NielsonRatings.xlsx, sheet("`year'") firstrow
-	keep _rank _showname _network _rating
-	gen seasonyear = `year'
-	ren _rank rank
-	ren _rating viewership
-	capture: replace viewership = subinstr(viewership, ",", ".",.)
-	destring viewership, replace
-	ren _showname showname 
-	ren _network network
-	tempfile `year'
-	display "`year'"
-	compress
-	save "`year'", replace
-}
-
-clear
-forvalues year = 1950/2014 {
-	append using "`year'"
-}
-
-compress
-outsheet showname network seasonyear using $dir/dbs/highlyrated.csv, comma replace
-
-* get market share of each firm
-bysort seasonyear: egen totalshows = count(showname)
-bysort seasonyear network: egen networkshows = count(network)
-gen marketshare = networkshows / totalshows
-keep network seasonyear marketshare
-duplicates drop
-save $dir/dbs/marketshare, replace
-
-clear
-forvalues year = 1950/2014 {
-	append using "`year'"
-}
-keep showname seasonyear rank viewership
-save $dir/dbs/highlyrated, replace
-
-* matlat script does some stuff
-clear
-import delimited $dir/dbs/favored.csv
-save $dir/dbs/favored, replace
-
-clear
-import delimited $dir/dbs/genres.csv
-
-* Short    	 571976
-* Drama    	 361560
-* Comedy    	 264182
-* Documentary    	 231806
-* Adult    	 75580
-* Action    	 70372
-* Thriller    	 69896
-* Romance    	 69432
-* Animation    	 58410
-* Family    	 55953
-* Horror    	 53259
-* Music    	 51033
-* Crime    	 49374
-* Adventure    	 43290
-* Fantasy    	 38735
-* Sci-Fi    	 35150
-* Mystery    	 32870
-* Biography    	 28039
-* History    	 24222
-* Sport    	 22956
-* Musical    	 18649
-* War    	 16764
-* Western    	 15436
-* Reality-TV    	 15269
-* News    	 14320
-* Talk-Show    	 10879
-* Game-Show    	 5437
-* Film-Noir    	 720
-* Lifestyle    	 1
-* Experimental    	 1
-* Erotica    	 1
-* Commercial    	 1
-
-duplicates drop
-bysort titleid: gen j = _n
-reshape wide genre, i(titleid) j(j)
-egen g = concat(genre*), punct("|")
-drop genre*
-ren g genre
-compress
-save $dir/dbs/genres, replace
-
-clear
-import delimited $dir/lists/rollingstone.csv
-
-compress
-save $dir/dbs/rollingstone, replace
-
-clear
-import delimited $dir/lists/productionownership.csv
-drop pcount
-duplicates drop
-
-compress
-save $dir/dbs/productionownership, replace
-
-
-clear
-import delimited $dir/dbs/production-companies.csv
-
-* not sure why this is necessary, need to investigate
-duplicates drop
-
-compress
-save $dir/dbs/production-companies, replace
-
-clear
-import delimited $dir/dbs/distributors.csv
-drop contents
-
-destring startyear, replace
-destring endyear, replace
-
-keep if media == "TV" & language == "us"
-drop media language region
-* Doesn't seem to do much for the big four
-drop originalairing
-
-compress
-save $dir/dbs/distributors, replace
-
-clear
-import delimited $dir/dbs/business.csv
-
-* 'AD'    Admissions
-* 'BT'    Production Budget
-* 'CP'    Copyright Holder
-* 'GR'    Gross Receipts
-* 'MV'    Title
-* 'OW'    Opening Weekend Gross
-* 'PD'    Production Dates
-* 'RT'    Rental Income
-* 'SD'    Filming / Shooting Dates
-* 'ST'    Studio where filmed
-* 'WG'    Weekend Gross
-
-keep if type == "SD" | type == "CP"
-
-compress
-save $dir/dbs/business, replace
 
 clear
 import delimited $dir/dbs/titles.csv
 
+* not sure what to do with this
+drop issuspended
+
 * filter out titles known to be foreign
-preserve
-clear
-* this file can have the same title marked as domenstic (forign = 0) as well
-* as foriegin (foreogin == 1). need to keep those marked as domestic, regardless
-* of foreign term
-import delimited $dir/dbs/country.csv
-bysort titleid: egen min_foreign = min(foreign)
-* drop foreign entries if show also had a domestic flag
-drop if min_foreign == 0 & foreign == 1
-* drop domestic data; don't need it
-drop if foreign == 0
-* clean up
-drop min_foreign
-duplicates drop
-save $dir/dbs/country, replace
-
-* now do the same with language
-clear
-* this file can have the same title marked as domenstic (forign = 0) as well
-* as foriegin (foreogin == 1). need to keep those marked as domestic, regardless
-* of foreign term
-import delimited $dir/dbs/language.csv
-bysort titleid: egen min_foreign = min(foreign)
-* drop foreign entries if show also had a domestic flag
-drop if min_foreign == 0 & foreign == 1
-* drop domestic data; don't need it
-drop if foreign == 0
-* clean up
-drop min_foreign
-duplicates drop
-save $dir/dbs/language, replace
-restore
-
 merge 1:1 titleid using $dir/dbs/country
-drop if _merge != 1
-drop _merge foreign
+drop if _merge == 2
+bysort showname year: egen min_foreign = min(foreign)
+drop if min_foreign == 1
+drop _merge foreign min_foreign
 
 * filtering out anything not in english from my dataset. Will screw up 
 * any analysis reliant on for example spanish language networks. 
 merge 1:1 titleid using $dir/dbs/language
-drop if _merge != 1
-drop _merge foreign
+drop if _merge == 2
+bysort showname year: egen min_foreign = min(foreign)
+drop if min_foreign == 1
+drop _merge foreign min_foreign
+
+merge 1:1 titleid using $dir/dbs/broadcastyear
+drop if _merge == 2
+drop _merge
+bysort showname year season: egen mean_broadcastyear = mode(broadcastyear), maxmode
+replace mean_broadcastyear = . if missing(season)
+drop broadcastyear
+rename mean_broadcastyear seasonyear
+
+* if we don't have enough information about seasonyear then drop the show, no
+* good way of matching season to year that works genericlly. most of these 
+* shows just have one episode. Seinfeld 1990 is a weird entry that seems to be 
+* an error of Seinfeld 1989
+drop if !missing(season) & missing(seasonyear)
+
+/*
+* need to adjust season to broadcast year since sometimes multiple seasons
+* are broadcast in the same year
+* need m:1 here becease distributors is multiple
+merge 1:1 titleid using $dir/dbs/broadcastyear
+drop if _merge == 2
+drop _merge
+bysort showname year season: egen mean_broadcastyear = mode(broadcastyear)
+replace mean_broadcastyear = . if missing(season)
+gen true_season = mean_broadcastyear - year + 1
+bysort showname year: egen min_true_season = min(true_season)
+replace true_season = true_season - min_true_season + 1
+count if true_season != season & showname == "The Office" & year == 2005
+assert(r(N) == 0)
+count if true_season != season & showname == "Band of Brothers" & year == 2001
+assert(r(N) == 0)
+count if true_season != season & showname == "Rick and Morty" & year == 2013
+assert(r(N) == 0)
+count if true_season != season & showname == "Breaking Bad" & year == 2008
+assert(r(N) == 0)
+count if true_season != season & showname == "Game of Thrones" & year == 2011
+assert(r(N) == 0)
+count if true_season != season & showname == "The Wire" & year == 2002
+assert(r(N) == 0)
+count if true_season != season & showname == "The Sopranos" & year == 1999
+assert(r(N) == 0)
+count if true_season != season & showname == "Sherlock" & year == 2010
+assert(r(N) == 0)
+count if true_season != season & showname == "Seinfeld" & year == 1989
+assert(r(N) == 0)
+count if true_season != season & showname == "Friends" & year == 1994
+assert(r(N) == 0)
+count if true_season != season & showname == "Simpsons" & year == 1989
+assert(r(N) == 0)
+count if true_season != season & showname == "Oz" & year == 1997
+assert(r(N) == 0)
+count if true_season != season & showname == "South Park" & year == 1997
+assert(r(N) == 0)
+count if true_season != season & showname == "Archer" & year == 2009
+assert(r(N) == 0)
+count if true_season != season & showname == "The West Wing" & year == 1999
+assert(r(N) == 0)
+count if true_season != season & showname == "Dexter" & year == 2006
+assert(r(N) == 0)
+count if true_season != season & showname == "The X-Files" & year == 1993
+assert(r(N) == 0)
+count if true_season == 16 & season == 21 & showname == "The Bachelor" & year == 2002
+assert(r(N) > 0)
+count if true_season == 12 & season == 17 & showname == "The Biggest Loser" & year == 2004
+assert(r(N) > 0)
+drop season broadcastyear mean_broadcastyear min_true_season
+ren true_season season
+
+* manually making changes for shows on main networks
+
+* adjusting season for some shows that have multiple seasons per year
+* survivor had two per season starting with season 3
+replace season = floor((season - 3) / 2) + 3 if showname == "Survivor" & year == 2000 & season > 2 
+drop if season == 102 & showname == "America's Funniest Home Videos" & year == 1989
+replace season = floor((season - 1) / 2) + 1 if showname == "Dancing with the Stars" & year == 2005
+* this is the australian and other foreign versions; not sure why it didn't get filtered above
+drop if showname == "Dancing with the Stars" & year != 2005
+* disneyland 1954 seems to be a problem in the final data but not sure what is wrong yet
+drop if season == 111 & showname == "Entertainment Tonight" & year == 1981
+replace season = 1 if showname == "Talking Pictures" & year == 2012 & season == 12
+replace season = 3 if showname == "Talking Pictures" & year == 2012 & season == 7
+replace season = floor((season - 2) / 2) + 2 if showname == "The Amazing Race" & year == 2001
+* UK version
+drop if showname == "The Bachelor" & year == 2003
+* Bachelor is a bit of a mess, needing to hand code
+replace season = 2 if showname == "The Bachelor" & year == 2002 & season == 3
+replace season = 3 if showname == "The Bachelor" & year == 2002 & season == 4
+replace season = 3 if showname == "The Bachelor" & year == 2002 & season == 5
+replace season = 4 if showname == "The Bachelor" & year == 2002 & season == 6
+replace season = 4 if showname == "The Bachelor" & year == 2002 & season == 7
+replace season = 5 if showname == "The Bachelor" & year == 2002 & season == 8
+replace season = 6 if showname == "The Bachelor" & year == 2002 & season == 9
+replace season = 6 if showname == "The Bachelor" & year == 2002 & season == 10
+replace season = 7 if showname == "The Bachelor" & year == 2002 & season == 11
+replace season = 7 if showname == "The Bachelor" & year == 2002 & season == 12
+replace season = 8 if showname == "The Bachelor" & year == 2002 & season == 13
+replace season = 9 if showname == "The Bachelor" & year == 2002 & season == 14
+replace season = 10 if showname == "The Bachelor" & year == 2002 & season == 15
+replace season = 11 if showname == "The Bachelor" & year == 2002 & season == 16
+replace season = 12 if showname == "The Bachelor" & year == 2002 & season == 17
+replace season = 13 if showname == "The Bachelor" & year == 2002 & season == 18
+replace season = 14 if showname == "The Bachelor" & year == 2002 & season == 19
+replace season = 15 if showname == "The Bachelor" & year == 2002 & season == 20
+replace season = 16 if showname == "The Bachelor" & year == 2002 & season == 21
+* German version
+drop if showname == "The Biggest Loser" & year == 2009
+replace season = 4 if showname == "The Biggest Loser" & year == 2004 & season == 5
+replace season = 5 if showname == "The Biggest Loser" & year == 2004 & season == 6
+replace season = 5 if showname == "The Biggest Loser" & year == 2004 & season == 7
+replace season = 6 if showname == "The Biggest Loser" & year == 2004 & season == 8
+replace season = 6 if showname == "The Biggest Loser" & year == 2004 & season == 9
+replace season = 7 if showname == "The Biggest Loser" & year == 2004 & season == 10
+replace season = 7 if showname == "The Biggest Loser" & year == 2004 & season == 11
+replace season = 8 if showname == "The Biggest Loser" & year == 2004 & season == 12
+replace season = 8 if showname == "The Biggest Loser" & year == 2004 & season == 13
+replace season = 9 if showname == "The Biggest Loser" & year == 2004 & season == 14
+replace season = 10 if showname == "The Biggest Loser" & year == 2004 & season == 15
+replace season = 11 if showname == "The Biggest Loser" & year == 2004 & season == 16
+replace season = 12 if showname == "The Biggest Loser" & year == 2004 & season == 17
+replace season = 1 if showname == "The Dee Armstrong Show" & year == 2015 & season == 7
+* austrailian version
+drop if showname == "The Voice" & year == 2012
+replace season = floor((season - 1) / 2) + 1 if showname == "The Voice" & year == 2011
+drop if showname == "Who Wants to Be a Millionaire" & year == 2002 & season == 29
+
+* trying a more generic approach to shows off network
+* first get rid of weird data
+replace season = . if season > 1000
+* what i really care about is the first two season's ratings and renewal
+* so topcoding everthing at 5 and then will drop season 5+ after ratings are 
+* calculated
+*/
+
+/*
+bysort showname year: egen max_season = max(season)
+su max_season
+local overall_max = r(max)
+gen error = 0
+local i = `overall_max'
+tab season, matrow(A)
+local A_size = r(r)
+sort showname year
+local `i' = `A_size'
+while  `i' > 0 {
+	local A_season = matrix A[`i']
+	disp "Season `A_season': Row `i'"
+	by showname year: egen season_count = sum(season == `A_season')
+	replace error = 0 if season == `A_season' & max_season >= `A_season' & !missing(max_season)
+	drop season_count
+	local i = `i' - 1
+}
+*/
+
+* trying to get rid of things that are not TV shows
+* later on we remove by genre as well
+bysort showname year: egen maxepisode = max(episodenumber)
+bysort showname year: egen maxseason = max(season)
+drop if maxepisode == . & maxseason == .
+drop maxseason maxepisode
 
 merge 1:m titleid using $dir/dbs/distributors
 ren company distributor
 drop if _merge == 2
 drop _merge
-
-bysort showname year: egen maxseason = max(season)
-gen success = 0
-replace success = 1 if  maxseason > 1 & maxseason < .
-replace success = 2 if maxseason > 4 & maxseason < .
-
-* trying to get rid of things that are not TV shows
-* later on we remove by genre as well
-bysort showname year: egen maxepisode = max(episodenumber)
-drop if maxepisode == . & maxseason == .
-drop maxseason maxepisode
 
 * looking for errors in distributors. Bones season 10 for example has 
 * 2 episodes marked incorrectly as distributed by ABC rather than FOX
@@ -272,7 +245,7 @@ replace distributor = true_dist if missing(distributor)
 drop true_dist
 
 * drop episodename issuspended endyear isBigFour
-drop episodename issuspended endyear
+drop episodename endyear
 duplicates drop
 
 * we still have titleid duplicates for null season entries when the show
@@ -311,6 +284,8 @@ drop if strpos(showname,"Getting By") & year == 1993 & season == . & strpos(dist
 drop if strpos(showname,"Presidential Debates")
 
 save $dir/dbs/midpoint_all, replace
+* dont' need to go past this for the decision making script
+assert(0)
 use $dir/dbs/midpoint_all, clear
 
 * basically shows that appeared on two different networks their first year

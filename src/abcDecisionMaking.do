@@ -2,6 +2,7 @@ clear all
 global dir "C:\Users\achavda\Dropbo~1\Televi~1\Data\movied~1.24"
 set more off
 
+capture: program drop chartbyyeariv
 program chartbyyeariv
 
 	args outcome dependent year conditional
@@ -10,7 +11,7 @@ program chartbyyeariv
 	local yearend = r(max)
 	local years = 1 + `yearend' - `yearstart'
 	* columns are year, estimate, lower bound, upper bound
-	matrix result = J(`years',4,0)
+	matrix result = J(`years',4,.)
 	matrix colnames result = year b ll ul
 	forvalues i = 1/`years' {
 		local currentyear = `i' + `yearstart' - 1
@@ -43,7 +44,7 @@ program chartbyyeariv
 
 end
 
-
+capture: program drop chartbyyear
 program chartbyyear
 
 	args outcome dependent year conditional
@@ -52,22 +53,22 @@ program chartbyyear
 	local yearend = r(max)
 	local years = 1 + `yearend' - `yearstart'
 	* columns are year, estimate, lower bound, upper bound
-	matrix result = J(`years',4,0)
+	matrix result = J(`years',4,.)
 	matrix colnames result = year b ll ul
 	forvalues i = 1/`years' {
 		local currentyear = `i' + `yearstart' - 1
 		if "`conditional'" == "" {
-			quietly: regress `outcome' `dependent' if `year' == `currentyear'
+			capture quietly: regress `outcome' `dependent' if `year' == `currentyear'
 		} 
 		else {
-			quietly: regress `outcome' `dependent' if `year' == `currentyear' & `conditional'
+			capture quietly: regress `outcome' `dependent' if `year' == `currentyear' & `conditional'
 		}
 		matrix c = r(table)
 		matrix result[`i',1] = `currentyear'
 		tokenize `dependent'
-		matrix result[`i',2] = c["b","`1'"]
-		matrix result[`i',3] = c["ll","`1'"]
-		matrix result[`i',4] = c["ul","`1'"]
+		capture: matrix result[`i',2] = c["b","`1'"]
+		capture: matrix result[`i',3] = c["ll","`1'"]
+		capture: matrix result[`i',4] = c["ul","`1'"]
 		matrix drop c
 	}
 	
@@ -84,18 +85,18 @@ program chartbyyear
 
 end
 
-
 * starting at the midpoint which includes all seasons of a show's run
 use $dir/dbs/midpoint_all, clear
 
-* just keep ABC as a proof of concept for now
-keep if isBigFour
-* keep if distributor == "ABC"
-drop isBigFour
+* keep if isBigFour
+* drop isBigFour
 
 preserve
 clear
 import delimited $dir/dbs/ratings.csv
+*** should probably have a different variable for this but for now...
+* replace rating = log(rating)
+
 quietly count
 local oldcount = r(N)
 duplicates drop
@@ -117,16 +118,26 @@ keep if _merge == 3
 drop _merge
 
 keep rating showname year season
+gen showrating = rating if missing(season)
+replace rating = . if missing(season)
 
-replace season = 1 if missing(season)
 * some seasons just have one episode rated; this creates a lot of noise in 
 * the aggregate data.
 bysort showname year season: gen drop_rating = (_N < 3)
 bysort showname year season: egen mean = mean(rating)
-drop if drop_rating
+replace rating = . if drop_rating
 drop rating drop_rating
 ren mean rating
 duplicates drop
+
+* best number i have for the season is the overall show rating
+* sucks for log because the mean of log episodes will be less than the log
+* mean of epsiodes if that's what the showrating represents
+bysort showname year season: replace rating = showrating if missing(rating)
+drop showrating
+bysort showname year: egen max_season = max(season)
+replace season = 1 if missing(max_season) & missing(season)
+drop max_season
 
 gen seasonyear = year + season - 1
 drop season
@@ -136,8 +147,11 @@ duplicates tag showname seasonyear, gen(dup)
 local oldcount = r(N)
 drop if dup
 quietly count
-assert(`oldcount' - r(N) < 30)
+assert(`oldcount' - r(N) < 300)
 drop dup
+
+* the IMDB data has the long title for this show
+replace showname = "NCIS: Naval Criminal Investigative Service" if showname == "NCIS"
 
 save $dir/dbs/ratings, replace
 restore
@@ -242,22 +256,11 @@ foreach genre of varlist g* {
 	}
 }
 
-preserve
-clear
-import delimited $dir/dbs/business.csv
-keep if type == "CP"
-drop type
-duplicates drop
-
-compress
-save $dir/dbs/business, replace
-restore
-
 merge 1:m titleid using $dir/dbs/business
 * I think these are films but need to validate
+gen sistercopyright = 0 if _merge == 3
 drop if _merge == 2
 drop _merge
-gen sistercopyright = 0
 replace content = lower(content)
 replace sistercopyright = 1 if distributor == "ABC" & strpos(content, "abc ")
 replace sistercopyright = 1 if distributor == "ABC" & strpos(content, "disney") & year > 1995
@@ -314,6 +317,11 @@ ren _sisterstudio sisterstudio
 drop titleid episodenumber
 duplicates drop
 
+*** using seasonyear from the movies list instead
+drop if missing(seasonyear)
+drop season
+duplicates drop
+/*
 * now reshaping seasons into years
 * how does genre not get screwed up here? seems like genre is constant
 * across the show itself; probably from the matlab script
@@ -321,116 +329,218 @@ bysort showname year: egen maxSeason = max(season)
 drop season
 * still some duplicates after this from shows that are listed on two or three different networks
 duplicates drop
+* duplicates cause problems with the expand so juse picking one
+bysort showname year: keep if _n == 1
 expand maxSeason
 gen seasonyear = year
 bysort showname year: replace seasonyear = seasonyear + _n - 1
 drop maxSeason
+*/
 
-* error in DB where show is listed twice
-bysort showname seasonyear: egen keepyear = min(year)
-keep if keepyear == year
-drop keepyear
+* dealing with when show has multiple distributors
+merge m:1 distributor using $dir/dbs/distributorrank
+drop if _merge == 2
+drop _merge
+bysort showname year seasonyear: egen max_rank = max(distributorrank)
+keep if distributorrank == max_rank
+drop max_rank distributorrank
 
-* drop if showname == "Dancing with the Stars" & year == 2005
+* some left overs where low distributors have same rank
+quietly: count
+local old_count = r(N)
+by showname year seasonyear: keep if _n == 1
+quietly: count
+assert(`old_count' - r(N) < 5)
 
 * adding season level rating data
+* should be doing this by titleid instead...
 merge 1:1 showname year seasonyear using $dir/dbs/ratings
 drop if _merge == 2
 drop _merge
 
+*** weird shows with overlap in seasonyears on the networks
+* ABC had same show as NBC for one year
+drop if showname=="Kraft Television Theatre" & year == 1953 & distributor  == "ABC"
+* PB was a cartoon spin-off of original PB
+drop if showname=="Punky Brewster" & year == 1985 & distributor  == "NBC"
+* super friends was renamed / rebooted in 1980
+drop if showname=="Super Friends" & year == 1973  & seasonyear == 1981 & distributor  == "ABC"
+* who wants to be a millionaire should really always be on ABC, error in the way 
+* i'm picking from multiple distributors
+drop if showname=="Who Wants to Be a Millionaire" & year == 1999 & distributor  == "ABC" & seasonyear == 2009
+
 * now adding marketing and nielson ratings
 * favored_pre and treated_pre means the new show was before a hit show
 * favored_post and treated_post means the new show was after a hit show
-preserve
-clear
-import delimited $dir/dbs/favoredall.csv
-encode dayofweek, gen(weekday)
-drop dayofweek
-ren weekday dayofweek
-compress
-save $dir/dbs/favoredall, replace
-restore
 
-merge 1:1 showname seasonyear using $dir/dbs/favoredall, keepusing(showname seasonyear) 
+* favoredall only has big four in it for now. Can probably add others once I 
+* figure out how to deal with the CW UPN merger
+gen favoredset = isBigFour == 1
+
+* a bunch of shows have colons in them from the IMDB data that needs to be sepecially 
+* dealt with like the original NCIS
+assert(0)
+
+
+merge m:1 showname seasonyear favoredset using $dir/dbs/favoredall, keepusing(showname seasonyear)
 
 * _merge == 2 is a problem due to IMDB listing by calendar year
 * of broadcast while neilson providing television year. Twin Peaks 
 * was in the 1989-1990 season but didn't broadcast until CY 1990
-bysort showname: egen minyear = min(seasonyear)
-gen spring = minyear == _year - 1
+bysort showname: egen minyear = min(seasonyear) if favoredset == 1
+gen spring = minyear == year - 1 if favoredset == 1
 drop if _merge == 2
-replace _year = minyear if spring
-replace seasonyear = seasonyear - 1 if spring
+* may not need to do this for merging later data, could get away with just
+* updating the seasonyear for the merge to work
+replace year = minyear if spring == 1 & favoredset == 1
+replace seasonyear = seasonyear - 1 if spring == 1 & favoredset == 1
 drop minyear spring _merge
+
 * 6 show-seasons seem to cause errors either because of genre differences
 * or network changes
+duplicates tag showname seasonyear if favoredset, gen(dup)
 quietly count
 local oldcount = r(N)
-bysort showname seasonyear: drop if _n > 1
+bysort showname seasonyear: gen dropme = _n > 1 & dup == 1
+drop if dropme == 1
+drop dropme dup
 quietly count
 assert(`oldcount' - r(N) < 10)
 
+* for the things that are still dups, perfer to kill the ones that are not from
+* the major networks
+* duplicates tag showname seasonyear, gen(dup)
+* drop if dup & !favoredset
+
 * now redo the merge
-merge 1:1 showname seasonyear using $dir/dbs/favoredall
-keep if _merge == 3
-drop _merge favoredset
-merge 1:1 showname seasonyear using $dir/dbs/highlyrated
+merge m:1 showname seasonyear favoredset using $dir/dbs/favoredall
+* this retricts our dataset to prime time shows on main networks
+* keep if _merge == 3
 drop if _merge == 2
-gen highlyrated = _merge == 3
-drop _merge
+replace pre_showname = "" if favoredset != 1
+replace post_showname = "" if favoredset != 1
+replace dayofweek = . if favoredset != 1
+drop _merge favoredset
 
 * WARNING: Can't merge any IMDB data after this point since i've changed
 * the show year to match season rather than calender year
+
+merge m:1 showname seasonyear using $dir/dbs/highlyrated
+drop if _merge == 2
+replace rank = . if isBigFour != 1
+replace viewership = . if isBigFour != 1
+gen highlyrated = _merge == 3 & isBigFour
+drop _merge
+
 
 * adding market share data
 ren distributor network
 merge m:1 network seasonyear using $dir/dbs/marketshare
 count if _merge == 2
-assert(r(N) == 0)
+* no longer the case since we have other networks
+* assert(r(N) == 0)
+* networks that didn't make top 30 list that year
+su seasonyear if _merge == 3
+replace marketshare = 0 if _merge == 1 & seasonyear >= r(min) & seasonyear <= r(max) & isBigFour
 drop _merge
 ren network distributor
-
 encode distributor, gen(network)
 drop distributor
 
-gen treated = treated_pre | treated_post
-gen favored = favored_pre | favored_post
+* think this is happening because the old show is tracked as a new name
+count if year > seasonyear
+* assert(r(N) == 0)
+gen firstyear = year == seasonyear
 
-* adding rating for adjacent shows
-ren year _year
-ren showname _showname
-ren rating _rating
-ren pre_showname showname
-* need to fix why this needs to be m:1 rather than 1:1, could be the Korean 
-* Friends collision problem
-merge m:1 showname seasonyear using $dir/dbs/ratings, keepusing(rating year)
-ren rating pre_rating
-ren showname pre_showname
-gen pre_firstyear = year == seasonyear
-drop year
-drop if _merge == 2
-drop _merge
-ren post_showname showname
-merge m:1 showname seasonyear using $dir/dbs/ratings, keepusing(rating year)
-ren rating post_rating
-ren showname post_showname
-gen post_firstyear = year == seasonyear
-drop year
-drop if _merge == 2
-drop _merge
-ren _showname showname
-ren _rating rating
-ren _year year
+sort seasonyear
+by seasonyear: egen showcount = count(isBigFour)
+gen rank2 = (showcount - 30) /2 + 30
+replace rank2 = rank if !missing(rank) & isBigFour
+* more intuitive for higher ranked show to be 'better'
+replace rank2 = -rank2
+drop showcount
+
+drop if showname == "Black Box" & year == 2013 & seasonyear == 2013 & isBigFour != 1 
 
 * setting up time series
 egen id = group(showname year)
 tsset id seasonyear
 gen renewed = !missing(F.year)
+gen lag_rating = L.rating
+gen for_rating = F.rating
+gen lag_rank = L.rank
+gen for_rank = F.rank
+gen lag_rank2 = L.rank2
+gen for_rank2 = F.rank2
+gen lag_viewership = L.viewership
+gen for_viewership = F.viewership
+gen lag_highlyrated = L.highlyrated
+gen for_highlyrated = F.highlyrated
+gen for_renewed = F.renewed
+
+save $dir/dbs/tmp, replace
+use $dir/dbs/tmp, clear
+
+* adding pre and post data
+* rating, rank, viewership, firstyear
+preserve
+keep showname seasonyear rating rank rank2 viewership firstyear highlyrated renewed lag_* for_*
+duplicates drop
+duplicates drop showname seasonyear, force
+save $dir/dbs/pre, replace
+restore
+
+ren showname _showname
+ren pre_showname showname
+
+ren rating _rating
+ren rank _rank
+ren rank2 _rank2
+ren viewership _viewership
+ren firstyear _firstyear
+ren highlyrated _highlyrated
+drop lag_* for_*
+
+* can't use 1:1 here because some pre shows were in front of multiple other shows
+merge m:1 showname seasonyear using $dir/dbs/pre
+
+ren rating pre_rating
+ren rank pre_rank
+ren rank2 pre_rank2
+ren viewership pre_viewership
+ren firstyear pre_firstyear
+ren highlyrated pre_highlyrated
+ren lag_* pre_lag_*
+ren for_* pre_for_*
+drop if _merge == 2
+drop _merge
+
+ren showname pre_showname
+ren post_showname showname
+
+merge m:1 showname seasonyear using $dir/dbs/pre
+
+ren rating post_rating
+ren rank post_rank
+ren rank2 post_rank2
+ren viewership post_viewership
+ren firstyear post_firstyear
+ren highlyrated post_highlyrated
+ren lag_* post_lag_*
+ren for_* post_for_*
+drop if _merge == 2
+drop _merge
+
+ren showname post_showname
+ren _showname showname
+ren _rating rating
+ren _rank rank
+ren _rank2 rank2
+ren _viewership viewership
+ren _firstyear firstyear
+ren _highlyrated highlyrated
+
 gen season = seasonyear - year + 1
-gen futuresuccess = F.highlyrated == 1
-replace futuresuccess = . if missing(F.highlyrated)
-gen futurefavored = F.favored_pre == 1 | F.favored_post == 1
-replace futurefavored = . if missing(F.favored_pre) & missing(F.favored_post)
 
 gen scripted = 1
 * getting rid of non-scripted stuff
@@ -442,7 +552,10 @@ replace scripted = 0 if gDocumentary
 replace scripted = 0 if gMusic & (totalgenres == 1)
 replace scripted = 0 if gNews & (totalgenres == 1) 
 replace scripted = 0 if gSport & (totalgenres == 1)
+gen reality = gRealityTV
 drop totalgenres
+
+
 
 * by 1957 all genres had been 'invented'
 * foreach genre of varlist g* { 
@@ -461,8 +574,8 @@ gen offpath = 0
 foreach genre of varlist g* { 
 	sort id seasonyear
 	gen ls`genre' = L.s`genre'
-	bysort seasonyear: egen lag = max(ls`genre')
-	bysort id: replace offpath = 1 if lag == 0 & `genre' == 1 & year == seasonyear
+	bysort seasonyear: egen lag = max(ls`genre') if isBigFour
+	bysort id: replace offpath = 1 if lag == 0 & `genre' == 1 & year == seasonyear & isBigFour
 	drop lag ls`genre'
 } 
 drop sg*
@@ -476,13 +589,29 @@ foreach genre of varlist g* {
 drop g*
 encode code, gen(genrecode)
 drop code
-bysort genrecode: egen firstyear = min(year)
-gen innovation = firstyear == year
-drop firstyear genrecode
+bysort genrecode: egen firstgenreyear = min(year)
+gen innovation = firstgenreyear == year
+drop firstgenreyear
+
+replace innovation = 0 if firstyear == 0
+* don't mark early stuff as innovation since genre set was still being worked out
+replace innovation = 0 if year < 1960
+
+gen treated_pre = pre_highlyrated == 1
+gen treated_post = post_highlyrated == 1
+gen treated = treated_pre | treated_post
+gen favored_pre = pre_lag_highlyrated == 1
+gen favored_post = post_lag_highlyrated == 1
+gen favored = favored_pre | favored_post
+
+sort id seasonyear
 
 compress
 save $dir/dbs/decisionmaking, replace
 use $dir/dbs/decisionmaking, clear
+
+assert(0)
+
 
 preserve
 keep if seasonyear == year
@@ -577,3 +706,104 @@ ivregress 2sls s innovative (m=error) if marketshare < 0.3
 lpoly innovative marketshare, ci noscatter
 
 
+assert(0)
+
+tsset, clear
+keep genrecode year isBigFour rating renewed scripted 
+duplicates drop
+bysort genrecode year isBigFour scripted: egen mean_rating = mean(rating)
+bysort genrecode year isBigFour scripted: egen min_rating = min(rating)
+bysort genrecode year isBigFour scripted: egen max_rating = max(rating)
+bysort genrecode year isBigFour scripted: egen mean_renewed = mean(renewed)
+drop rating renewed
+duplicates drop
+bysort genrecode: egen t = rank(year), track
+drop year
+egen id = group(genrecode isBigFour)
+tsset t 
+
+assert(0)
+
+
+use $dir/dbs/decisionmaking, clear
+decode network, gen(strnetwork)
+ren network _network
+ren strnetwork network
+
+replace network = "PBS" if strpos(network, "PBS")
+replace network = "DISC" if strpos(network, "Discovery")
+replace network = "AE" if strpos(network, "A&E")
+replace network = "NIC" if strpos(network, "Nickelodeon")
+replace network = "MTV" if strpos(network, "MTV")
+replace network = "CC" if strpos(network, "Comedy Central")
+replace network = "TOON" if strpos(network, "Cartoon Network")
+replace network = "TOON" if strpos(network, "Adult Swim")
+replace network = "HGTV" if strpos(network, "HGTV")
+replace network = "WB" if strpos(network, "Warner Bros")
+replace network = "DIS" if strpos(network, "Disney Channel")
+replace network = "CW" if strpos(network, "CW Tele")
+replace network = "LIF" if strpos(network, "Lifetime")
+replace network = "UPN" if strpos(network, "UPN")
+replace network = "SF" if strpos(network, "Syfy")
+replace network = "TBS" if strpos(network, "TBS")
+replace network = "AMC" if strpos(network, "AMC")
+replace network = "IFC" if strpos(network, "IFC")
+replace network = "FF" if strpos(network, "Freeform")
+replace network = "FF" if strpos(network, "ABC Family")
+replace network = "SF" if strpos(network, "Sci-Fi")
+replace network = "BBC" if strpos(network, "BBC")
+
+replace network = "TNT" if strpos(network, "TNT")
+replace network = "STAR" if strpos(network, "Starz")
+replace network = "SPIKE" if strpos(network, "Spike")
+
+merge m:1 network year using $dir/dbs/networkpilots
+keep if _merge == 3
+drop _merge
+keep if firstyear & scripted
+gen scripts_greenlit = total_scripts / total_greenlit
+gen scripts_pilot = total_scripts / total_pilot
+gen pilot_greenlit = total_pilot / total_greenlit
+keep if year > 2000 & year < 2016
+
+
+regress rating scripts_greenlit, cluster(network)
+regress rating pilot_greenlit, cluster(network)
+regress rating scripts_pilot, cluster(network)
+
+
+regress renewed scripts_greenlit, cluster(network)
+regress renewed pilot_greenlit, cluster(network)
+regress renewed scripts_pilot, cluster(network)
+
+assert(0)
+use $dir/dbs/decisionmaking, clear
+keep if firstyear & isBigFour & scripted
+decode network, gen(strnetwork)
+drop network
+label drop network
+encode strnetwork, gen(network)
+drop strnetwork
+drop seasonyear isBigFour scripted firstyear
+
+label variable year "Year"
+label variable network "Network"
+label variable rating "IMDB Rating"
+label variable favored_post "Strongly Preferred"
+label variable favored_pre "Weakly Preferred"
+label variable sisterstudio "Vertically Integrated"
+label variable sistercopyright "Vertically Integrated Copyright"
+
+sutex year network rating favored_post favored_pre sisterstudio sistercopyright, labels digits(2) minmax file($dir/tmp/summary.tex) replace key("tab:sumstat") par
+
+assert(0)
+
+gen fyear2 = year - mod(year,2)
+gen fyear3 = year - mod(year,3)
+gen fyear4 = year - mod(year,4)
+gen fyear5 = year - mod(year,5)
+gen fyear10 = year - mod(year,10)
+
+regress rating favored_pre i.network##i.fyear10##i.dayofweek, robust
+estout, cells("b se p ci_l ci_u") keep(_cons f*) stats(N r2 F)
+ 

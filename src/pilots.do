@@ -15,6 +15,39 @@ gen network = "FOX" if strpos(broadcastnetwork,"Fox")
 replace network = "ABC" if strpos(broadcastnetwork, "ABC")
 replace network = "CBS" if strpos(broadcastnetwork, "CBS")
 replace network = "NBC" if strpos(broadcastnetwork, "NBC")
+replace network = "WB" if strpos(broadcastnetwork, "Warner Bros")
+replace network = "PBS" if strpos(broadcastnetwork, "PBS")
+replace network = "UPN" if strpos(broadcastnetwork, "UPN")
+replace network = "CW" if strpos(broadcastnetwork, "CW Tele")
+replace network = "BBC" if strpos(broadcastnetwork, "BBC")
+* not enough data
+* replace network = "HBO" if strpos(broadcastnetwork, "HBO")
+* not enough data
+* replace network = "USA" if strpos(broadcastnetwork, "USA")
+* not enough data
+* replace network = "SHO" if strpos(broadcastnetwork, "Showtime")
+replace network = "CC" if strpos(broadcastnetwork, "Comedy Central")
+* not enough data
+* replace network = "FX" if strpos(broadcastnetwork, "FX")
+replace network = "LIF" if strpos(broadcastnetwork, "Lifetime")
+replace network = "MTV" if strpos(broadcastnetwork, "MTV")
+replace network = "SF" if strpos(broadcastnetwork, "Syfy")
+* ???
+replace network = "SF" if strpos(cablenetwork, "Sci-Fi")
+replace network = "NIC" if strpos(cablenetwork, "Nickelodeon")
+replace network = "TOON" if strpos(cablenetwork, "Cartoon Network")
+replace network = "TNT" if strpos(cablenetwork, "TNT")
+replace network = "FF" if strpos(cablenetwork, "Freeform")
+replace network = "AMC" if strpos(cablenetwork, "AMC")
+replace network = "DIS" if strpos(cablenetwork, "Disney Channel")
+replace network = "BBC" if strpos(cablenetwork, "BBC")
+replace network = "STAR" if strpos(cablenetwork, "Starz")
+replace network = "TBS" if strpos(cablenetwork, "TBS")
+replace network = "IFC" if strpos(cablenetwork, "IFC")
+replace network = "HGTV" if strpos(cablenetwork, "HGTV")
+replace network = "SPIKE" if strpos(cablenetwork, "Spike")
+replace network = "AE" if strpos(cablenetwork, "A+E Networks")
+replace network = "DISC" if strpos(cablenetwork, "Discovery")
 * very small number of scripts with broadcastnetwork also have cablenewtork
 drop if missing(network)
 drop broadcastnetwork cablenetwork
@@ -103,3 +136,11 @@ keep network year bias
 save $dir/bias, replace
 restore
 
+assert(0)
+
+bysort network year: egen total_pilots = sum(pilot)
+bysort network year: egen total_greenlit = sum(greenlit)
+bysort network year: egen total_scripts = count(year)
+keep network year total_greenlit total_pilots total_scripts
+duplicates drop
+save $dir/movied~1.24/dbs/networkpilots, replace

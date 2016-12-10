@@ -1,8 +1,17 @@
 % For this version of the code I'm checking if the show was favored for
 % each year of its run, not just the first
 
+% Updating this to not check for favored directly but just put the name of
+% the adjacent show. The STATA code can make its own call about whether the
+% show was favored or not
+
 clearvars
 clc
+
+% Not exactly sure why matching the schedule data with the network shows
+% is important. It filters out non-TV shows like 'sunday movie' but STATA
+% can do that just as easily. Leaving for now because I dont' want to 
+% mess with the pattern matching at the moment.
 disp('Loading network show list');
 filename = 'C:\Users\achavda\Dropbox (MIT)\Television Project\Data\moviedb-3.24\dbs\networkshows.csv';
 delimiter = ',';
@@ -18,42 +27,17 @@ networkShowsClean = cellfun(@(x) regexp(x,'^(.*?)\s*(?:\(|\[|#|$)','tokens'),net
 networkShowsClean = cellfun(@(x) x{1},networkShowsClean,'UniformOutput',false);
 clearvars filename delimiter startRow formatSpec fileID;
 
-disp('Loading nielson hit list');
-filename = 'C:\Users\achavda\Dropbox (MIT)\Television Project\Data\moviedb-3.24\dbs\highlyrated.csv';
-delimiter = ',';
-startRow = 2;
-formatSpec = '%q%q%u%[^\n\r]';
-fileID = fopen(filename,'r');
-highlyRatedShows = textscan(fileID, formatSpec, 'Delimiter', delimiter, 'EmptyValue' ,NaN,'HeaderLines' ,startRow-1, 'ReturnOnError', false, 'EndOfLine', '\r\n');
-fclose(fileID);
-highlyRatedYears = cell2mat(highlyRatedShows(3));
-highlyRatedShows = highlyRatedShows{1,1};
-% clean the show names using the same regex we use below
-highlyRatedShowsClean = cellfun(@(x) regexp(x,'^(.*?)\s*(?:\(|\[|#|$)','tokens'),highlyRatedShows);
-highlyRatedShowsClean = cellfun(@(x) x{1},highlyRatedShowsClean,'UniformOutput',false);
-
-clearvars filename delimiter startRow formatSpec fileID;
-
 shownames = [];
 years = [];
 found = [];
-favored_pre = [];
-favored_post = [];
-treated_pre = [];
-treated_post = [];
 pre_showname = {};
 post_showname = {};
 day = {};
 
 for year = 1947:2016
-
+    
     % shows that we were able to match on the prime time schedule
     networkShowFound = zeros(size(networkShowYears),'logical');
-    % shows that were scheduled next to a highly rated show
-    networkShowFavored_Pre = zeros(size(networkShowYears),'logical');
-    networkShowFavored_Post = zeros(size(networkShowYears),'logical');
-    networkShowTreated_Pre = zeros(size(networkShowYears),'logical');
-    networkShowTreated_Post = zeros(size(networkShowYears),'logical');
     loop_pre_showname = cell(size(networkShowYears));
     loop_post_showname = cell(size(networkShowYears));
     loop_day = cell(size(networkShowYears));
@@ -69,8 +53,6 @@ for year = 1947:2016
     if year < 1957
         startIndex = 2;
     end
-    highlyRated_intent = highlyRatedShows(highlyRatedYears == (year-1));
-    highlyRated_treat = highlyRatedShows(highlyRatedYears == (year));
     Schedule(:,1) = lower(Schedule(:,1));
     ABC = strcmp(Schedule(:,1),'abc');
     NBC = strcmp(Schedule(:,1),'nbc');
@@ -135,6 +117,10 @@ for year = 1947:2016
             tokens = regexp(showname,'^(?<show>.*?)\s*(?:\(|\[|#|$)','names');
             showname = tokens.show;
             showIndex = strcmpi(showname,networkShowsClean);
+            % special code for NCIS
+            % if(sum(showIndex) == 0 && strcmp(showname,'NCIS'))
+            %    showIndex = strcmpi('NCIS: Naval Criminal Investigative Service',networkShowsClean);                
+            % end
             % filter out shows that are too new to be in this data slice
             showIndex = showIndex & (networkShowYears <= (year+1));
             if(sum(showIndex) == 0)
@@ -163,52 +149,44 @@ for year = 1947:2016
             % check if next to a highly rated show
             j_hit = 0;
             if(j > startIndex)
-                hitname = Schedule{i,j-1};
-                if (~isempty(hitname))
+                k = j;
+                while (k > startIndex)
+                    k = k - 1;
+                    hitname = Schedule{i,k};
+                    if(isempty(hitname))
+                        break;
+                    end
                     if(isnumeric(hitname))
                         hitname = num2str(hitname);
                     end
                     tokens = regexp(hitname,'^(?<show>.*?)\s*(?:\(|\[|#|$)','names');
                     hitname = tokens.show;
-                    loop_post_showname{showIndex} = hitname;
-                    hitIndex = strcmpi(hitname,highlyRated_intent);
-                    assert(sum(hitIndex) < 2)
-                    if(sum(hitIndex) == 1) 
-                        % mark the show as being after a hit
-                        networkShowFavored_Post = networkShowFavored_Post | showIndex;
+                    if(strcmp(showname, hitname))
+                        continue;
                     end
-                    % now check if it was actually treated
-                    hitIndex = strcmpi(hitname,highlyRated_treat);
-                    assert(sum(hitIndex) < 2)
-                    if(sum(hitIndex) == 1) 
-                        % mark the show as being after a hit
-                        networkShowTreated_Post = networkShowTreated_Post | showIndex;
-                    end                    
+                    loop_post_showname{showIndex} = hitname;
+                    break;
                 end
             end
             if (j < endIndex)
-                hitname = Schedule{i,j+1};
-                if (~isempty(hitname))
+                k = j;
+                while (k < endIndex)
+                    k = k + 1;
+                    hitname = Schedule{i,k};
+                    if(isempty(hitname))
+                        break;
+                    end
                     if(isnumeric(hitname))
                         hitname = num2str(hitname);
                     end
                     tokens = regexp(hitname,'^(?<show>.*?)\s*(?:\(|\[|#|$)','names');
                     hitname = tokens.show;
-                    loop_pre_showname{showIndex} = hitname;                    
-                    hitIndex = strcmpi(hitname,highlyRated_intent);
-                    assert(sum(hitIndex) < 2)
-                    if(sum(hitIndex) == 1) 
-                        % mark the show as being before a hit
-                        networkShowFavored_Pre = networkShowFavored_Pre | showIndex;
+                    if(strcmp(showname, hitname))
+                        continue;
                     end
-                    % now check if it was actually treated
-                    hitIndex = strcmpi(hitname,highlyRated_treat);
-                    assert(sum(hitIndex) < 2)
-                    if(sum(hitIndex) == 1) 
-                        % mark the show as being after a hit
-                        networkShowTreated_Pre = networkShowTreated_Pre | showIndex;
-                    end                      
-                end                
+                    loop_pre_showname{showIndex} = hitname;
+                    break;
+                end
             end
         end
     end
@@ -216,10 +194,6 @@ for year = 1947:2016
     shownames = [shownames;networkShows(networkShowFound)];
     years = [years;repmat(year,sum(networkShowFound),1)];
     found = [found;networkShowFound(networkShowFound)];
-    favored_pre = [favored_pre;networkShowFavored_Pre(networkShowFound)];
-    favored_post = [favored_post;networkShowFavored_Post(networkShowFound)];
-    treated_pre = [treated_pre;networkShowTreated_Pre(networkShowFound)];
-    treated_post = [treated_post;networkShowTreated_Post(networkShowFound)];
     pre_showname = [pre_showname;loop_pre_showname(networkShowFound)];
     post_showname = [post_showname;loop_post_showname(networkShowFound)];
     day = [day;loop_day(networkShowFound)];
@@ -236,6 +210,6 @@ end
 
 disp('Outputing CSV file');
 
-outputTable = table(shownames,years,found,favored_pre,favored_post,treated_pre,treated_post,pre_showname,post_showname, day,'VariableNames',{'showname' 'year','favoredset','favored_pre','favored_post', 'treated_pre','treated_post','pre_showname','post_showname','dayofweek'});
+outputTable = table(shownames,years,found,pre_showname,post_showname,day,'VariableNames',{'showname' 'seasonyear','favoredset','pre_showname','post_showname','dayofweek'});
 writetable(outputTable,'../dbs/favoredall.csv');
 
